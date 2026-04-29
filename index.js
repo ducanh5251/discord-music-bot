@@ -1,68 +1,54 @@
+const { Client, GatewayIntentBits, SlashCommandBuilder } = require('discord.js');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const play = require('play-dl');
 require('dotenv').config();
 
-const { Client, GatewayIntentBits } = require('discord.js');
-const { Player } = require('discord-player');
-
 const client = new Client({
- intents: [
-  GatewayIntentBits.Guilds,
-  GatewayIntentBits.GuildMessages,
-  GatewayIntentBits.GuildVoiceStates,
-  GatewayIntentBits.MessageContent
- ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
 });
 
-const player = new Player(client);
+const player = createAudioPlayer();
 
 client.once('ready', () => {
- console.log('Bot nhạc online!');
+  console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-client.on('messageCreate', async (message) => {
+// Slash command
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
 
- if(message.author.bot) return;
+  if (interaction.commandName === 'play') {
+    const url = interaction.options.getString('url');
 
- // Test bot
- if(message.content === '!ping'){
-   message.reply('Pong!');
- }
+    const voiceChannel = interaction.member.voice.channel;
+    if (!voiceChannel) {
+      return interaction.reply('❌ Bạn phải vào voice trước!');
+    }
 
- // Phát nhạc
- if(message.content.startsWith('!play')){
+    await interaction.reply('⏳ Đang phát nhạc...');
 
-   let song = message.content.replace('!play ','');
-   
-   if(!message.member.voice.channel){
-      return message.reply(
-      'Bạn phải vào voice trước!'
-      );
-   }
+    const stream = await play.stream(url);
 
-   await player.play(
-      message.member.voice.channel,
-      song,
-      {
-        nodeOptions:{
-          metadata: message.channel
-        }
-      }
-   );
+    const resource = createAudioResource(stream.stream, {
+      inputType: stream.type
+    });
 
-   message.reply('Đang phát: ' + song);
- }
+    const connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: interaction.guild.id,
+      adapterCreator: interaction.guild.voiceAdapterCreator
+    });
 
- // Bỏ qua bài
- if(message.content === '!skip'){
-   let queue = player.nodes.get(message.guild);
-   if(queue) queue.node.skip();
- }
+    player.play(resource);
+    connection.subscribe(player);
+  }
 
- // Dừng nhạc
- if(message.content === '!stop'){
-   let queue = player.nodes.get(message.guild);
-   if(queue) queue.delete();
- }
-
+  if (interaction.commandName === 'stop') {
+    player.stop();
+    await interaction.reply('⏹️ Đã dừng nhạc!');
+  }
 });
 
-client.login(process.env.TOKEN);
+client.login(process.env.DISCORD_TOKEN);
+
+
