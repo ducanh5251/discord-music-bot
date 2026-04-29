@@ -1,1 +1,6 @@
-# discord-music-bot
+# Discord Music Bot
+
+Commands:
+!play
+!skip
+!stop
